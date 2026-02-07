@@ -1,0 +1,331 @@
+-- SkyForgezX Hub v1.24.5
+-- Producer: SkyForgezX
+-- Optimized for: Solara, Delta, Fluxus, Hydrogen, Electron, etc.
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
+
+-- === SETTINGS ===
+local version = "v1.24.5"
+local logoURL = "https://mutluresim.com/images/2026/02/07/XOKS1q.png"
+local themeColor = Color3.fromRGB(138, 43, 226) -- Purple Theme
+local toggleKey = Enum.KeyCode.RightControl
+
+-- === EXECUTOR SAFE GUI PARENTING ===
+local function getUI_Parent()
+    local success, parent = pcall(function()
+        -- Prioritize CoreGui for security (Executor feature)
+        if getgenv and getgenv() then
+            return CoreGui
+        else
+            return LocalPlayer:WaitForChild("PlayerGui")
+        end
+    end)
+    return success and parent or LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Cleanup Old Instances
+if getUI_Parent():FindFirstChild("SkyForgezX_Hub") then
+    getUI_Parent().SkyForgezX_Hub:Destroy()
+end
+
+-- === LOGIC VARIABLES ===
+local flying = false
+local noclip = false
+local flySpeed = 50
+local noclipConnection = nil
+
+-- === UI CREATION ===
+local function createHub()
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "SkyForgezX_Hub"
+    ScreenGui.Parent = getUI_Parent()
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.DisplayOrder = 10000 -- Topmost Layer
+
+    -- MAIN FRAME
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Name = "MainFrame"
+    MainFrame.Size = UDim2.new(0, 500, 0, 360)
+    MainFrame.Position = UDim2.new(0.5, -250, 0.5, -180)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+    MainFrame.BackgroundTransparency = 0.05
+    MainFrame.BorderSizePixel = 0
+    MainFrame.Active = true
+    MainFrame.Parent = ScreenGui
+
+    -- DRAGGABLE SYSTEM (Universal)
+    local dragging, dragInput, dragStart, startPos
+    local function update(input)
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+    MainFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = MainFrame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    MainFrame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then update(input) end
+    end)
+
+    -- AESTHETICS (Stroke & Shadow)
+    local uiStroke = Instance.new("UIStroke")
+    uiStroke.Color = themeColor
+    uiStroke.Thickness = 2.5
+    uiStroke.Parent = MainFrame
+    
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(0, 10)
+    uiCorner.Parent = MainFrame
+
+    -- LOGO
+    local Logo = Instance.new("ImageLabel")
+    Logo.Name = "HubLogo"
+    Logo.Size = UDim2.new(0, 50, 0, 50)
+    Logo.Position = UDim2.new(0, 12, 0, 10)
+    Logo.BackgroundTransparency = 1
+    Logo.Image = logoURL
+    Logo.ScaleType = Enum.ScaleType.Fit
+    Logo.Parent = MainFrame
+
+    -- TITLE
+    local Title = Instance.new("TextLabel")
+    Title.Text = "SkyForgezX Hub"
+    Title.Size = UDim2.new(0, 200, 0, 30)
+    Title.Position = UDim2.new(0, 70, 0, 12)
+    Title.BackgroundTransparency = 1
+    Title.TextColor3 = themeColor
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    Title.Font = Enum.Font.GothamBold
+    Title.TextSize = 24
+    Title.Parent = MainFrame
+
+    -- VERSION LABEL
+    local VerLabel = Instance.new("TextLabel")
+    VerLabel.Text = version
+    VerLabel.Size = UDim2.new(0, 100, 0, 20)
+    VerLabel.Position = UDim2.new(0, 70, 0, 38)
+    VerLabel.BackgroundTransparency = 1
+    VerLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    VerLabel.TextXAlignment = Enum.TextXAlignment.Left
+    VerLabel.Font = Enum.Font.Gotham
+    VerLabel.TextSize = 14
+    VerLabel.Parent = MainFrame
+
+    -- CLOSE BUTTON
+    local CloseBtn = Instance.new("TextButton")
+    CloseBtn.Text = "X"
+    CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+    CloseBtn.Position = UDim2.new(1, -40, 0, 15)
+    CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+    CloseBtn.TextColor3 = Color3.new(1,1,1)
+    CloseBtn.Font = Enum.Font.GothamBold
+    CloseBtn.TextSize = 16
+    CloseBtn.Parent = MainFrame
+    Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
+    
+    CloseBtn.MouseButton1Click:Connect(function() 
+        ScreenGui.Enabled = false
+    end)
+
+    -- SEPARATOR LINE
+    local Line = Instance.new("Frame")
+    Line.Size = UDim2.new(1, -24, 0, 1)
+    Line.Position = UDim2.new(0, 12, 0, 70)
+    Line.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    Line.BorderSizePixel = 0
+    Line.Parent = MainFrame
+
+    -- SCROLLING CONTAINER
+    local Container = Instance.new("ScrollingFrame")
+    Container.Size = UDim2.new(1, -24, 0, 260)
+    Container.Position = UDim2.new(0, 12, 0, 80)
+    Container.BackgroundTransparency = 1
+    Container.BorderSizePixel = 0
+    Container.ScrollBarThickness = 3
+    Container.ScrollBarImageColor3 = themeColor
+    Container.Parent = MainFrame
+    
+    local UIList = Instance.new("UIListLayout")
+    UIList.Padding = UDim.new(0, 8)
+    UIList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    UIList.SortOrder = Enum.SortOrder.LayoutOrder
+    UIList.Parent = Container
+
+    -- === BUTTON FACTORY ===
+    local function createButton(text, callback)
+        local btn = Instance.new("TextButton")
+        btn.Text = text
+        btn.Size = UDim2.new(1, -10, 0, 40)
+        btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        btn.TextColor3 = Color3.new(0.9, 0.9, 0.9)
+        btn.Font = Enum.Font.GothamSemibold
+        btn.TextSize = 14
+        btn.Parent = Container
+        
+        local bCorner = Instance.new("UICorner")
+        bCorner.CornerRadius = UDim.new(0, 6)
+        bCorner.Parent = btn
+        
+        local bStroke = Instance.new("UIStroke")
+        bStroke.Color = Color3.fromRGB(60, 60, 60)
+        bStroke.Thickness = 1
+        bStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        bStroke.Parent = btn
+        
+        btn.MouseButton1Click:Connect(function()
+            -- Animation
+            TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = themeColor, TextColor3 = Color3.new(1,1,1)}):Play()
+            task.wait(0.15)
+            TweenService:Create(btn, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(35, 35, 35), TextColor3 = Color3.new(0.9, 0.9, 0.9)}):Play()
+            
+            -- Safe Execution
+            if callback then 
+                local s, e = pcall(callback)
+                if not s then warn("[SkyForgezX Error]: " .. tostring(e)) end
+            end
+        end)
+    end
+
+    -- === FEATURES IMPLEMENTATION ===
+
+    -- 1. FLY
+    createButton("Toggle Fly Mode", function()
+        flying = not flying
+        if flying then
+            local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+            local root = char:WaitForChild("HumanoidRootPart")
+            
+            local bodyVel = Instance.new("BodyVelocity")
+            bodyVel.Name = "SkyFly_Velocity"
+            bodyVel.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+            bodyVel.Parent = root
+            
+            task.spawn(function()
+                while flying and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") and LocalPlayer.Character.Humanoid.Health > 0 do
+                    local cam = workspace.CurrentCamera
+                    bodyVel.Velocity = cam.CFrame.LookVector * flySpeed
+                    RunService.Heartbeat:Wait()
+                end
+                if bodyVel then bodyVel:Destroy() end
+                flying = false -- Auto reset if died
+            end)
+        else
+            for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
+                if v.Name == "SkyFly_Velocity" then v:Destroy() end
+            end
+        end
+    end)
+
+    -- 2. NOCLIP
+    createButton("Toggle Noclip (Walk Through Walls)", function()
+        noclip = not noclip
+        if noclip then
+            noclipConnection = RunService.Stepped:Connect(function()
+                if LocalPlayer.Character then
+                    for _, v in pairs(LocalPlayer.Character:GetChildren()) do
+                        if v:IsA("BasePart") then
+                            v.CanCollide = false
+                        end
+                    end
+                end
+            end)
+        else
+            if noclipConnection then 
+                noclipConnection:Disconnect() 
+                noclipConnection = nil
+            end
+        end
+    end)
+
+    -- 3. SPEED 100
+    createButton("Set Speed: 100", function()
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = 100
+        end
+    end)
+    
+    -- 4. SPEED 200
+    createButton("Set Speed: 200", function()
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = 200
+        end
+    end)
+
+    -- 5. RESET SPEED
+    createButton("Reset Speed (Default)", function()
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = 16
+        end
+    end)
+
+    -- 6. JUMP POWER
+    createButton("High Jump (Power 100)", function()
+         if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.UseJumpPower = true
+            LocalPlayer.Character.Humanoid.JumpPower = 100
+        end
+    end)
+
+    -- 7. TP TOOL
+    createButton("Teleport Tool (Equip & Click)", function()
+        if LocalPlayer.Backpack:FindFirstChild("TP Tool") then return end
+        
+        local tool = Instance.new("Tool")
+        tool.Name = "TP Tool"
+        tool.RequiresHandle = false
+        tool.Parent = LocalPlayer.Backpack
+        
+        tool.Activated:Connect(function()
+            local mouse = LocalPlayer:GetMouse()
+            if LocalPlayer.Character then
+                LocalPlayer.Character:MoveTo(mouse.Hit.Position)
+            end
+        end)
+    end)
+
+    -- FOOTER
+    local Footer = Instance.new("TextLabel")
+    Footer.Text = "Producer: SkyForgezX"
+    Footer.Size = UDim2.new(1, -20, 0, 15)
+    Footer.Position = UDim2.new(0, 10, 1, -20)
+    Footer.BackgroundTransparency = 1
+    Footer.TextColor3 = Color3.fromRGB(100, 100, 100)
+    Footer.TextXAlignment = Enum.TextXAlignment.Right
+    Footer.Font = Enum.Font.GothamItalic
+    Footer.TextSize = 11
+    Footer.Parent = MainFrame
+
+    -- === KEYBIND LOGIC ===
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if input.KeyCode == toggleKey and not gameProcessed then
+            ScreenGui.Enabled = not ScreenGui.Enabled
+        end
+    end)
+
+    -- NOTIFICATION
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "SkyForgezX Hub " .. version;
+        Text = "Loaded successfully! Press Right Ctrl to toggle.";
+        Icon = logoURL;
+        Duration = 5;
+    })
+end
+
+-- Start
+createHub()
