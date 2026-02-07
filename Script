@@ -1,11 +1,11 @@
 --[[
-    SkyForgezX Hub v16.0 - INFINITY PRIME Edition (FIXED & STABLE)
+    SkyForgezX Hub v16.0 - INFINITY PRIME Edition
     Producer: SkyForgezX
-    Status: Working
-    Fixes: Crash on inject, Mobile Button logic, VirtualUser removed
+    Status: STABLE & UNIVERSAL
+    Features: Infinity Robux, God Mode, Fling, Safe GUI
 ]]
 
--- === WAIT FOR GAME ===
+-- === SAFE LOAD ===
 if not game:IsLoaded() then game.Loaded:Wait() end
 
 -- === SERVICES ===
@@ -16,10 +16,7 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
 local CoreGui = game:GetService("CoreGui")
-local TeleportService = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService")
 local StarterGui = game:GetService("StarterGui")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
@@ -34,6 +31,490 @@ local Config = {
     RobuxAmount = "∞"
 }
 
+local State = {
+    Fly = false,
+    Noclip = false,
+    Aimbot = false,
+    ESP = false,
+    KillAura = false,
+    GodMode = false,
+    Fling = false
+}
+
+-- === UI PARENTING (SAFE MODE) ===
+local function GetSafeParent()
+    -- Automatically selects PlayerGui if CoreGui is restricted (Fixes crashes on Xeno/Delta)
+    local success, parent = pcall(function()
+        if getgenv and (identifyexecutor or getexecutorname) then
+            return CoreGui
+        else
+            return LocalPlayer:WaitForChild("PlayerGui")
+        end
+    end)
+    return success and parent or LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Cleanup Old GUI
+pcall(function()
+    for _, v in pairs(GetSafeParent():GetChildren()) do
+        if v.Name == "SkyInfinityPrime" then v:Destroy() end
+    end
+end)
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "SkyInfinityPrime"
+ScreenGui.Parent = GetSafeParent()
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.ResetOnSpawn = false -- Prevents GUI from disappearing on death
+ScreenGui.IgnoreGuiInset = true
+
+-- BLUR (Visuals)
+local Blur = Instance.new("BlurEffect")
+Blur.Size = 0
+Blur.Parent = Lighting
+
+-- THEME COLORS
+local Theme = {
+    Main = Color3.fromRGB(170, 0, 255),
+    Dark = Color3.fromRGB(12, 12, 12),
+    Text = Color3.fromRGB(255, 255, 255),
+    Sidebar = Color3.fromRGB(18, 18, 22)
+}
+
+-- NOTIFICATION SYSTEM
+local NotifHolder = Instance.new("Frame")
+NotifHolder.Size = UDim2.new(0, 300, 1, 0)
+NotifHolder.Position = UDim2.new(1, -310, 0, 50)
+NotifHolder.BackgroundTransparency = 1
+NotifHolder.Parent = ScreenGui
+local NotifLayout = Instance.new("UIListLayout")
+NotifLayout.Padding = UDim.new(0, 10)
+NotifLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+NotifLayout.Parent = NotifHolder
+
+local function Notify(title, text)
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(1, 0, 0, 0)
+    Frame.BackgroundColor3 = Theme.Dark
+    Frame.BorderSizePixel = 0
+    Frame.Parent = NotifHolder
+    Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 8)
+    
+    local Stroke = Instance.new("UIStroke")
+    Stroke.Color = Theme.Main
+    Stroke.Thickness = 1.5
+    Stroke.Parent = Frame
+    
+    local T = Instance.new("TextLabel")
+    T.Text = title
+    T.Size = UDim2.new(1, -20, 0, 20)
+    T.Position = UDim2.new(0, 10, 0, 5)
+    T.BackgroundTransparency = 1
+    T.TextColor3 = Theme.Main
+    T.Font = Enum.Font.GothamBold
+    T.TextSize = 14
+    T.TextXAlignment = Enum.TextXAlignment.Left
+    T.Parent = Frame
+    
+    local M = Instance.new("TextLabel")
+    M.Text = text
+    M.Size = UDim2.new(1, -20, 0, 20)
+    M.Position = UDim2.new(0, 10, 0, 25)
+    M.BackgroundTransparency = 1
+    M.TextColor3 = Theme.Text
+    M.Font = Enum.Font.Gotham
+    M.TextSize = 12
+    M.TextXAlignment = Enum.TextXAlignment.Left
+    M.Parent = Frame
+    
+    TweenService:Create(Frame, TweenInfo.new(0.5, Enum.EasingStyle.Back), {Size = UDim2.new(1, 0, 0, 60)}):Play()
+    task.delay(3, function()
+        TweenService:Create(Frame, TweenInfo.new(0.5), {Size = UDim2.new(1,0,0,0)}):Play()
+        task.wait(0.5)
+        Frame:Destroy()
+    end)
+end
+
+-- MAIN GUI
+local Main = Instance.new("Frame")
+Main.Size = UDim2.new(0, 800, 0, 500)
+Main.Position = UDim2.new(0.5, -400, 0.5, -250)
+Main.BackgroundColor3 = Theme.Dark
+Main.BorderSizePixel = 0
+Main.ClipsDescendants = true
+Main.Visible = false
+Main.Parent = ScreenGui
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 12)
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Thickness = 2
+MainStroke.Parent = Main
+
+-- RAINBOW LOOP (Optimized)
+task.spawn(function()
+    while ScreenGui.Parent do
+        if Config.RainbowUI then
+            local hue = tick() % 5 / 5
+            local color = Color3.fromHSV(hue, 1, 1)
+            Theme.Main = color
+            MainStroke.Color = color
+        end
+        task.wait(0.1)
+    end
+end)
+
+-- SIDEBAR
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0, 220, 1, 0)
+Sidebar.BackgroundColor3 = Theme.Sidebar
+Sidebar.BorderSizePixel = 0
+Sidebar.Parent = Main
+Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 12)
+
+local Logo = Instance.new("ImageLabel")
+Logo.Size = UDim2.new(0, 180, 0, 100)
+Logo.Position = UDim2.new(0.5, -90, 0, 10)
+Logo.BackgroundTransparency = 1
+Logo.Image = "https://mutluresim.com/images/2026/02/07/XOKS1q.png"
+Logo.ScaleType = Enum.ScaleType.Fit
+Logo.Parent = Sidebar
+
+local TabHolder = Instance.new("ScrollingFrame")
+TabHolder.Size = UDim2.new(1, 0, 1, -180)
+TabHolder.Position = UDim2.new(0, 0, 0, 110)
+TabHolder.BackgroundTransparency = 1
+TabHolder.ScrollBarThickness = 0
+TabHolder.Parent = Sidebar
+local TabList = Instance.new("UIListLayout")
+TabList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+TabList.Padding = UDim.new(0, 8)
+TabList.Parent = TabHolder
+
+-- === PROFILE UI (Bottom Left) ===
+local ProfileFrame = Instance.new("Frame")
+ProfileFrame.Size = UDim2.new(0.9, 0, 0, 70)
+ProfileFrame.Position = UDim2.new(0.05, 0, 1, -80)
+ProfileFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+ProfileFrame.Parent = Sidebar
+Instance.new("UICorner", ProfileFrame).CornerRadius = UDim.new(0, 10)
+local PStroke = Instance.new("UIStroke")
+PStroke.Thickness = 1.5
+PStroke.Parent = ProfileFrame
+-- Stroke Sync
+task.spawn(function() while ProfileFrame.Parent do PStroke.Color = Theme.Main; task.wait(0.1) end end)
+
+local UserImage = Instance.new("ImageLabel")
+UserImage.Size = UDim2.new(0, 50, 0, 50)
+UserImage.Position = UDim2.new(0, 10, 0, 10)
+UserImage.BackgroundColor3 = Theme.Dark
+UserImage.Parent = ProfileFrame
+Instance.new("UICorner", UserImage).CornerRadius = UDim.new(1, 0)
+-- Safe Image Load
+task.spawn(function()
+    pcall(function()
+        UserImage.Image = Players:GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+    end)
+end)
+
+local DisplayName = Instance.new("TextLabel")
+DisplayName.Text = LocalPlayer.DisplayName
+DisplayName.Size = UDim2.new(1, -70, 0, 20)
+DisplayName.Position = UDim2.new(0, 70, 0, 10)
+DisplayName.BackgroundTransparency = 1
+DisplayName.TextColor3 = Color3.new(1,1,1)
+DisplayName.Font = Enum.Font.GothamBold
+DisplayName.TextSize = 13
+DisplayName.TextXAlignment = Enum.TextXAlignment.Left
+DisplayName.Parent = ProfileFrame
+
+local RobuxLabel = Instance.new("TextLabel")
+RobuxLabel.Name = "RobuxDisplay"
+RobuxLabel.Text = "R$: " .. Config.RobuxAmount
+RobuxLabel.Size = UDim2.new(1, -70, 0, 20)
+RobuxLabel.Position = UDim2.new(0, 70, 0, 30)
+RobuxLabel.BackgroundTransparency = 1
+RobuxLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
+RobuxLabel.Font = Enum.Font.GothamBold
+RobuxLabel.TextSize = 13
+RobuxLabel.TextXAlignment = Enum.TextXAlignment.Left
+RobuxLabel.Parent = ProfileFrame
+
+-- CONTENT AREA
+local Content = Instance.new("Frame")
+Content.Size = UDim2.new(1, -230, 1, -20)
+Content.Position = UDim2.new(0, 230, 0, 10)
+Content.BackgroundTransparency = 1
+Content.Parent = Main
+local Pages = {}
+
+-- DRAGGABLE SYSTEM
+local dragging, dragInput, dragStart, startPos
+local function update(input)
+    local delta = input.Position - dragStart
+    Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+Sidebar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true; dragStart = input.Position; startPos = Main.Position
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+    end
+end)
+Sidebar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+end)
+UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
+
+-- MOBILE BUTTON (DRAGGABLE & FIXED)
+local MobBtn = Instance.new("ImageButton")
+MobBtn.Size = UDim2.new(0, 60, 0, 60)
+MobBtn.Position = UDim2.new(0, 30, 0.4, 0)
+MobBtn.BackgroundColor3 = Theme.Dark
+MobBtn.Image = "https://mutluresim.com/images/2026/02/07/XOKS1q.png"
+MobBtn.Parent = ScreenGui
+Instance.new("UICorner", MobBtn).CornerRadius = UDim.new(1,0)
+local MStroke = Instance.new("UIStroke")
+MStroke.Thickness = 2
+MStroke.Parent = MobBtn
+task.spawn(function() while MobBtn.Parent do MStroke.Color = Theme.Main; task.wait(0.1) end end)
+
+-- Mobile Drag Logic
+local mbDrag, mbStart, mbPos
+MobBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        mbDrag = true; mbStart = input.Position; mbPos = MobBtn.Position
+        input.Changed:Connect(function() 
+            if input.UserInputState == Enum.UserInputState.End then 
+                mbDrag = false
+                if (input.Position - mbStart).Magnitude < 5 then
+                    -- Click Logic
+                    Main.Visible = not Main.Visible
+                    Blur.Size = Main.Visible and 20 or 0
+                end
+            end 
+        end)
+    end
+end)
+MobBtn.InputChanged:Connect(function(input)
+    if mbDrag and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local d = input.Position - mbStart
+        MobBtn.Position = UDim2.new(mbPos.X.Scale, mbPos.X.Offset + d.X, mbPos.Y.Scale, mbPos.Y.Offset + d.Y)
+    end
+end)
+
+-- UI BUILDER FUNCTIONS
+local function CreateTab(name)
+    local Btn = Instance.new("TextButton")
+    Btn.Text = name
+    Btn.Size = UDim2.new(0.85, 0, 0, 40)
+    Btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    Btn.TextColor3 = Color3.fromRGB(150, 150, 150)
+    Btn.Font = Enum.Font.GothamBold
+    Btn.TextSize = 13
+    Btn.Parent = TabHolder
+    Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
+    
+    local Page = Instance.new("ScrollingFrame")
+    Page.Size = UDim2.new(1, 0, 1, 0)
+    Page.BackgroundTransparency = 1
+    Page.ScrollBarThickness = 2
+    Page.Visible = false
+    Page.Parent = Content
+    local UIList = Instance.new("UIListLayout")
+    UIList.Padding = UDim.new(0, 6)
+    UIList.Parent = Page
+    Pages[name] = Page
+    
+    Btn.MouseButton1Click:Connect(function()
+        for _,p in pairs(Pages) do p.Visible = false end
+        Page.Visible = true
+        for _,b in pairs(TabHolder:GetChildren()) do
+            if b:IsA("TextButton") then
+                TweenService:Create(b, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(30,30,30), TextColor3 = Color3.fromRGB(150,150,150)}):Play()
+            end
+        end
+        TweenService:Create(Btn, TweenInfo.new(0.2), {BackgroundColor3 = Theme.Main, TextColor3 = Theme.Text}):Play()
+    end)
+    
+    return {
+        Toggle = function(text, default, callback)
+            local TFrame = Instance.new("TextButton")
+            TFrame.Text = ""
+            TFrame.Size = UDim2.new(1, 0, 0, 40)
+            TFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+            TFrame.Parent = Page
+            Instance.new("UICorner", TFrame).CornerRadius = UDim.new(0, 6)
+            
+            local Lbl = Instance.new("TextLabel"); Lbl.Text=text; Lbl.Size=UDim2.new(0.7,0,1,0); Lbl.Position=UDim2.new(0,10,0,0); Lbl.BackgroundTransparency=1; Lbl.TextColor3=Theme.Text; Lbl.Font=Enum.Font.GothamSemibold; Lbl.TextXAlignment=Enum.TextXAlignment.Left; Lbl.Parent=TFrame
+            
+            local Switch = Instance.new("Frame"); Switch.Size=UDim2.new(0,40,0,20); Switch.Position=UDim2.new(1,-50,0.5,-10); Switch.BackgroundColor3=default and Theme.Main or Color3.fromRGB(50,50,50); Switch.Parent=TFrame; Instance.new("UICorner",Switch).CornerRadius=UDim.new(1,0)
+            local Dot = Instance.new("Frame"); Dot.Size=UDim2.new(0,16,0,16); Dot.Position=default and UDim2.new(1,-18,0.5,-8) or UDim2.new(0,2,0.5,-8); Dot.BackgroundColor3=Theme.Text; Dot.Parent=Switch; Instance.new("UICorner",Dot).CornerRadius=UDim.new(1,0)
+            
+            task.spawn(function() while Switch.Parent do if Switch.BackgroundColor3 ~= Color3.fromRGB(50,50,50) then Switch.BackgroundColor3 = Theme.Main end task.wait(0.2) end end)
+            
+            local on = default
+            TFrame.MouseButton1Click:Connect(function()
+                on = not on
+                TweenService:Create(Switch, TweenInfo.new(0.2), {BackgroundColor3 = on and Theme.Main or Color3.fromRGB(50,50,50)}):Play()
+                TweenService:Create(Dot, TweenInfo.new(0.2), {Position = on and UDim2.new(1,-18,0.5,-8) or UDim2.new(0,2,0.5,-8)}):Play()
+                if callback then pcall(callback, on) end
+            end)
+        end,
+        Slider = function(text, min, max, default, callback)
+            local SFrame = Instance.new("Frame"); SFrame.Size=UDim2.new(1,0,0,50); SFrame.BackgroundColor3=Color3.fromRGB(25,25,25); SFrame.Parent=Page; Instance.new("UICorner",SFrame).CornerRadius=UDim.new(0,6)
+            local Lbl = Instance.new("TextLabel"); Lbl.Text=text; Lbl.Size=UDim2.new(1,-20,0,20); Lbl.Position=UDim2.new(0,10,0,5); Lbl.BackgroundTransparency=1; Lbl.TextColor3=Theme.Text; Lbl.Font=Enum.Font.GothamSemibold; Lbl.Parent=SFrame
+            local Val = Instance.new("TextLabel"); Val.Text=tostring(default); Val.Size=UDim2.new(0,50,0,20); Val.Position=UDim2.new(1,-60,0,5); Val.BackgroundTransparency=1; Val.TextColor3=Theme.Main; Val.Font=Enum.Font.GothamBold; Val.Parent=SFrame
+            local Bar = Instance.new("TextButton"); Bar.Text=""; Bar.Size=UDim2.new(1,-20,0,6); Bar.Position=UDim2.new(0,10,0,35); Bar.BackgroundColor3=Color3.fromRGB(40,40,40); Bar.Parent=SFrame; Instance.new("UICorner",Bar).CornerRadius=UDim.new(1,0)
+            local Fill = Instance.new("Frame"); Fill.Size=UDim2.new((default-min)/(max-min),0,1,0); Fill.BackgroundColor3=Theme.Main; Fill.Parent=Bar; Instance.new("UICorner",Fill).CornerRadius=UDim.new(1,0)
+            task.spawn(function() while Fill.Parent do Fill.BackgroundColor3=Theme.Main; Val.TextColor3=Theme.Main; task.wait(0.2) end end)
+            
+            local drag = false
+            Bar.MouseButton1Down:Connect(function() drag=true end)
+            UserInputService.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=false end end)
+            UserInputService.InputChanged:Connect(function(i) if drag and i.UserInputType==Enum.UserInputType.MouseMovement then
+                local p = math.clamp((UserInputService:GetMouseLocation().X-Bar.AbsolutePosition.X)/Bar.AbsoluteSize.X,0,1)
+                Fill.Size = UDim2.new(p,0,1,0); local v=math.floor(min+((max-min)*p)); Val.Text=tostring(v); if callback then pcall(callback, v) end
+            end end)
+        end,
+        Button = function(text, callback)
+            local Btn = Instance.new("TextButton"); Btn.Text=text; Btn.Size=UDim2.new(1,0,0,35); Btn.BackgroundColor3=Color3.fromRGB(25,25,25); Btn.TextColor3=Theme.Text; Btn.Font=Enum.Font.GothamSemibold; Btn.TextSize=14; Btn.Parent=Page; Instance.new("UICorner",Btn).CornerRadius=UDim.new(0,6)
+            Btn.MouseButton1Click:Connect(function()
+                TweenService:Create(Btn, TweenInfo.new(0.1), {BackgroundColor3=Theme.Main}):Play()
+                task.wait(0.1)
+                TweenService:Create(Btn, TweenInfo.new(0.2), {BackgroundColor3=Color3.fromRGB(25,25,25)}):Play()
+                if callback then pcall(callback) end
+            end)
+        end
+    }
+end
+
+-- === TABS ===
+local InfinityTab = CreateTab("INFINITY Robux")
+local MainTab = CreateTab("Main Features")
+local CombatTab = CreateTab("Combat")
+local VisualsTab = CreateTab("Visuals")
+local TrollTab = CreateTab("Troll & Fun")
+
+-- === FEATURES ===
+
+-- INFINITY
+InfinityTab.Button("ACTIVATE INFINITY ROBUX", function()
+    Config.RobuxAmount = "∞"
+    if ProfileFrame:FindFirstChild("RobuxDisplay") then ProfileFrame.RobuxDisplay.Text = "R$: ∞" end
+    if LocalPlayer:FindFirstChild("leaderstats") then
+        for _, v in pairs(LocalPlayer.leaderstats:GetChildren()) do
+            if v:IsA("IntValue") then v.Value = 999999999 end
+            if v:IsA("StringValue") then v.Value = "∞" end
+        end
+    end
+    Notify("INFINITY", "Visual Robux Injection Complete!")
+end)
+
+-- MAIN
+MainTab.Toggle("Superman Fly (Stabilized)", false, function(state)
+    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+    if state and root and hum then
+        local bv = Instance.new("BodyVelocity", root); bv.Name="SkyFly"; bv.MaxForce=Vector3.new(math.huge,math.huge,math.huge)
+        local bg = Instance.new("BodyGyro", root); bg.Name="SkyGyro"; bg.P=9e4; bg.MaxTorque=Vector3.new(9e9,9e9,9e9)
+        hum.PlatformStand = true
+        task.spawn(function()
+            while root:FindFirstChild("SkyFly") do
+                if hum.MoveDirection.Magnitude > 0 then for _,t in pairs(hum:GetPlayingAnimationTracks()) do t:Stop() end end
+                bg.CFrame = Camera.CFrame
+                local v = Vector3.new()
+                if UserInputService:IsKeyDown(Enum.KeyCode.W) then v=v+Camera.CFrame.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.S) then v=v-Camera.CFrame.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.A) then v=v-Camera.CFrame.RightVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.D) then v=v+Camera.CFrame.RightVector end
+                bv.Velocity = v * Config.FlySpeed
+                RunService.RenderStepped:Wait()
+            end
+        end)
+    else
+        if root then
+            if root:FindFirstChild("SkyFly") then root.SkyFly:Destroy() end
+            if root:FindFirstChild("SkyGyro") then root.SkyGyro:Destroy() end
+        end
+        if hum then hum.PlatformStand = false end
+    end
+end)
+MainTab.Slider("Fly Speed", 20, 300, 50, function(v) Config.FlySpeed = v end)
+
+-- GOD MODE (Anti-Void)
+MainTab.Toggle("God Mode (Anti-Void)", false, function(state)
+    State.GodMode = state
+    task.spawn(function()
+        while State.GodMode do
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                if LocalPlayer.Character.HumanoidRootPart.Position.Y < -50 then
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(LocalPlayer.Character.HumanoidRootPart.Position.X, 100, LocalPlayer.Character.HumanoidRootPart.Position.Z)
+                end
+            end
+            task.wait(1)
+        end
+    end)
+end)
+
+-- COMBAT
+CombatTab.Toggle("Kill Aura (Safe Mode)", false, function(state)
+    State.KillAura = state
+    task.spawn(function()
+        while State.KillAura do
+            pcall(function()
+                if LocalPlayer.Character then
+                    local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
+                    if tool then
+                        tool:Activate()
+                        for _,p in pairs(Players:GetPlayers()) do
+                            if p~=LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                                if (p.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude < 15 then
+                                    firetouchinterest(tool.Handle, p.Character.HumanoidRootPart, 0)
+                                    firetouchinterest(tool.Handle, p.Character.HumanoidRootPart, 1)
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+            task.wait(0.1)
+        end
+    end)
+end)
+
+-- VISUALS
+VisualsTab.Toggle("ESP", false, function(state)
+    State.ESP = state
+    while State.ESP do
+        for _,p in pairs(Players:GetPlayers()) do
+            if p~=LocalPlayer and p.Character and not p.Character:FindFirstChild("SkyESP") then
+                local h = Instance.new("Highlight", p.Character); h.Name="SkyESP"; h.FillColor=Theme.Main; h.OutlineColor=Color3.new(1,1,1)
+            end
+        end
+        task.wait(1)
+    end
+    if not state then for _,v in pairs(Workspace:GetDescendants()) do if v.Name=="SkyESP" then v:Destroy() end end end
+end)
+
+-- TROLL
+TrollTab.Toggle("Invisible Fling", false, function(state)
+    State.Fling = state
+    if state and LocalPlayer.Character then
+        for _,v in pairs(LocalPlayer.Character:GetDescendants()) do if v:IsA("BasePart") then v.Transparency=1 end end
+        local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            local v = Instance.new("BodyAngularVelocity", root)
+            v.Name = "Spin"
+            v.AngularVelocity = Vector3.new(0, 100000, 0)
+            v.MaxTorque = Vector3.new(0, math.huge, 0)
+        end
+    elseif LocalPlayer.Character then
+        for _,v in pairs(LocalPlayer.Character:GetDescendants()) do if v:IsA("BasePart") then v.Transparency=0 end end
+        local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if root and root:FindFirstChild("Spin") then root.Spin:Destroy() end
+    end
+end)
+
+Notify("INFINITY PRIME", "v16.0 Loaded Successfully!")
 local State = {
     Fly = false,
     Noclip = false,
