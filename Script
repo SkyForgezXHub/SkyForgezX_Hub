@@ -1,9 +1,12 @@
 --[[
-    SkyForgezX Hub v16.0 - INFINITY PRIME Edition
+    SkyForgezX Hub v16.0 - INFINITY PRIME Edition (FIXED)
     Producer: SkyForgezX
     Features: Infinity Robux (Visual), God Mode, Invisible Fling
     Executors: Solara, Delta, Xeno, Krln, Fluxus, Hydrogen, Codex, Arceus X
 ]]
+
+-- === SAFETY CHECK ===
+if not game:IsLoaded() then game.Loaded:Wait() end
 
 -- === SERVICES ===
 local Players = game:GetService("Players")
@@ -13,11 +16,11 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
 local CoreGui = game:GetService("CoreGui")
-local VirtualUser = game:GetService("VirtualUser")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local StarterGui = game:GetService("StarterGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
@@ -29,11 +32,102 @@ local Config = {
     WalkSpeed = 16,
     JumpPower = 50,
     RainbowUI = true,
-    RobuxAmount = "∞" -- Infinity Symbol
+    RobuxAmount = "∞"
 }
 
 local State = {
     Fly = false,
+    Noclip = false,
+    Aimbot = false,
+    ESP = false,
+    KillAura = false,
+    GodMode = false,
+    Fling = false
+}
+
+-- === UI LIBRARY ===
+local Library = {}
+
+function Library:SafeGui()
+    local success, result = pcall(function()
+        -- CoreGui güvenlik kontrolü
+        if getgenv and getgenv() then
+            return CoreGui
+        else
+            return LocalPlayer:WaitForChild("PlayerGui")
+        end
+    end)
+    return success and result or LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Eski GUI'yi Temizle
+if Library:SafeGui():FindFirstChild("SkyInfinityPrime") then
+    Library:SafeGui().SkyInfinityPrime:Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "SkyInfinityPrime"
+ScreenGui.Parent = Library:SafeGui()
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.IgnoreGuiInset = true
+
+-- BLUR
+local Blur = Instance.new("BlurEffect")
+Blur.Size = 0
+Blur.Parent = Lighting
+
+-- THEME
+local Theme = {
+    Main = Color3.fromRGB(170, 0, 255),
+    Dark = Color3.fromRGB(10, 10, 12),
+    Text = Color3.fromRGB(255, 255, 255),
+    Sidebar = Color3.fromRGB(15, 15, 18)
+}
+
+-- NOTIFICATIONS
+local NotifHolder = Instance.new("Frame")
+NotifHolder.Size = UDim2.new(0, 300, 1, 0)
+NotifHolder.Position = UDim2.new(1, -310, 0, 50)
+NotifHolder.BackgroundTransparency = 1
+NotifHolder.Parent = ScreenGui
+local NotifLayout = Instance.new("UIListLayout")
+NotifLayout.Padding = UDim.new(0, 10)
+NotifLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+NotifLayout.Parent = NotifHolder
+
+function Library:Notify(title, text)
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(1, 0, 0, 0)
+    Frame.BackgroundColor3 = Theme.Dark
+    Frame.BorderSizePixel = 0
+    Frame.Parent = NotifHolder
+    Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 8)
+    
+    local Stroke = Instance.new("UIStroke")
+    Stroke.Color = Theme.Main
+    Stroke.Thickness = 1.5
+    Stroke.Parent = Frame
+    
+    local T = Instance.new("TextLabel")
+    T.Text = title
+    T.Size = UDim2.new(1, -20, 0, 20)
+    T.Position = UDim2.new(0, 10, 0, 5)
+    T.BackgroundTransparency = 1
+    T.TextColor3 = Theme.Main
+    T.Font = Enum.Font.GothamBold
+    T.TextSize = 14
+    T.TextXAlignment = Enum.TextXAlignment.Left
+    T.Parent = Frame
+    
+    local M = Instance.new("TextLabel")
+    M.Text = text
+    M.Size = UDim2.new(1, -20, 0, 20)
+    M.Position = UDim2.new(0, 10, 0, 25)
+    M.BackgroundTransparency = 1
+    M.TextColor3 = Theme.Text
+    M.Font = Enum.Font.Gotham
+    M.TextSize = 12
+    M.TextXAlignment = Enum.TextXAlignment.Left
     Noclip = false,
     Aimbot = false,
     ESP = false,
